@@ -1,0 +1,222 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN" "http://www.w3.org/TR/html4/strict.dtd">
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <meta http-equiv="Content-Style-Type" content="text/css">
+  <title></title>
+  <meta name="Generator" content="Cocoa HTML Writer">
+  <meta name="CocoaVersion" content="2575.7">
+  <style type="text/css">
+    p.p1 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica}
+    p.p2 {margin: 0.0px 0.0px 0.0px 0.0px; font: 12.0px Helvetica; min-height: 14.0px}
+  </style>
+</head>
+<body>
+<p class="p1">import React, { useState, useRef, useEffect } from 'react';</p>
+<p class="p2"><br></p>
+<p class="p1">// 載入外部函式庫用於匯出功能</p>
+<p class="p1">const loadScript = (src) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>return new Promise((resolve, reject) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const script = document.createElement('script');</p>
+<p class="p1"><span class="Apple-converted-space">    </span>script.src = src;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>script.onload = resolve;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>script.onerror = reject;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>document.head.appendChild(script);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>});</p>
+<p class="p1">};</p>
+<p class="p2"><br></p>
+<p class="p1">const App = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">  </span>// 建立 9x9 的資料結構 (81格)</p>
+<p class="p1"><span class="Apple-converted-space">  </span>// data[blockIndex][cellIndex]</p>
+<p class="p1"><span class="Apple-converted-space">  </span>// blockIndex: 0-8 代表九個大區塊，cellIndex: 0-8 代表區塊內的九個小格</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const [data, setData] = useState(Array(9).fill(null).map(() =&gt; Array(9).fill('')));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const [isExporting, setIsExporting] = useState(false);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const gridRef = useRef(null);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>useEffect(() =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 預載入匯出所需的外掛程式</p>
+<p class="p1"><span class="Apple-converted-space">    </span>Promise.all([</p>
+<p class="p1"><span class="Apple-converted-space">      </span>loadScript('https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js'),</p>
+<p class="p1"><span class="Apple-converted-space">      </span>loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js')</p>
+<p class="p1"><span class="Apple-converted-space">    </span>]).catch(err =&gt; console.error("無法載入匯出元件", err));</p>
+<p class="p1"><span class="Apple-converted-space">  </span>}, []);</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>// 核心連動邏輯</p>
+<p class="p1"><span class="Apple-converted-space">  </span>const handleCellChange = (blockIdx, cellIdx, value) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const newData = data.map(block =&gt; [...block]);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>newData[blockIdx][cellIdx] = value;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 當修改中央區塊 (Index 4) 的非中心格時，同步更新對應周圍區塊的中心點</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if (blockIdx === 4 &amp;&amp; cellIdx !== 4) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>newData[cellIdx][4] = value;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 當修改周圍區塊 (Index != 4) 的中心點 (Index 4) 時，同步回報給中央區塊</p>
+<p class="p1"><span class="Apple-converted-space">    </span>else if (blockIdx !== 4 &amp;&amp; cellIdx === 4) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>newData[4][blockIdx] = value;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>setData(newData);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const exportAsImage = async () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if (!window.html2canvas) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>console.error("html2canvas 未載入");</p>
+<p class="p1"><span class="Apple-converted-space">      </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>setIsExporting(true);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 延遲以確保輸入框失焦，避免出現游標或藍色框框</p>
+<p class="p1"><span class="Apple-converted-space">    </span>setTimeout(async () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const canvas = await window.html2canvas(gridRef.current, {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>backgroundColor: '#ffffff',</p>
+<p class="p1"><span class="Apple-converted-space">        </span>scale: 2,</p>
+<p class="p1"><span class="Apple-converted-space">        </span>useCORS: true,</p>
+<p class="p1"><span class="Apple-converted-space">      </span>});</p>
+<p class="p1"><span class="Apple-converted-space">      </span>const link = document.createElement('a');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>link.download = `目標九宮格-${data[4][4] || '我的目標'}.png`;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>link.href = canvas.toDataURL('image/png');</p>
+<p class="p1"><span class="Apple-converted-space">      </span>link.click();</p>
+<p class="p1"><span class="Apple-converted-space">      </span>setIsExporting(false);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}, 150);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const exportAsExcel = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if (!window.XLSX) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>console.error("xlsx 未載入");</p>
+<p class="p1"><span class="Apple-converted-space">      </span>return;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><span class="Apple-converted-space">    </span></p>
+<p class="p1"><span class="Apple-converted-space">    </span>// 建立 9x9 的試算表內容</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const rows = [];</p>
+<p class="p1"><span class="Apple-converted-space">    </span>for (let rowBlock = 0; rowBlock &lt; 3; rowBlock++) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>for (let rowCell = 0; rowCell &lt; 3; rowCell++) {</p>
+<p class="p1"><span class="Apple-converted-space">        </span>const rowData = [];</p>
+<p class="p1"><span class="Apple-converted-space">        </span>for (let colBlock = 0; colBlock &lt; 3; colBlock++) {</p>
+<p class="p1"><span class="Apple-converted-space">          </span>const blockIdx = rowBlock * 3 + colBlock;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>for (let colCell = 0; colCell &lt; 3; colCell++) {</p>
+<p class="p1"><span class="Apple-converted-space">            </span>const cellIdx = rowCell * 3 + colCell;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>rowData.push(data[blockIdx][cellIdx]);</p>
+<p class="p1"><span class="Apple-converted-space">          </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>rows.push(rowData);</p>
+<p class="p1"><span class="Apple-converted-space">      </span>}</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">    </span>const worksheet = window.XLSX.utils.aoa_to_sheet(rows);</p>
+<p class="p1"><span class="Apple-converted-space">    </span>const workbook = window.XLSX.utils.book_new();</p>
+<p class="p1"><span class="Apple-converted-space">    </span>window.XLSX.utils.book_append_sheet(workbook, worksheet, "目標九宮格");</p>
+<p class="p1"><span class="Apple-converted-space">    </span>window.XLSX.writeFile(workbook, `目標九宮格-${data[4][4] || '我的目標'}.xlsx`);</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>const resetGrid = () =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">    </span>if (window.confirm("確定要清除所有填寫內容嗎？")) {</p>
+<p class="p1"><span class="Apple-converted-space">      </span>setData(Array(9).fill(null).map(() =&gt; Array(9).fill('')));</p>
+<p class="p1"><span class="Apple-converted-space">    </span>}</p>
+<p class="p1"><span class="Apple-converted-space">  </span>};</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">  </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;div className="min-h-screen bg-slate-50 py-8 px-4 font-sans text-slate-800"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;div className="max-w-[1000px] mx-auto"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>{/* 標題與操作區 */}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h1 className="text-3xl font-extrabold text-slate-900 mb-2"&gt;目標九宮格&lt;/h1&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p className="text-slate-500"&gt;從中心點出發，系統會自動同步您的關鍵要素至對應區塊。&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="flex gap-2"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;button<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>onClick={exportAsImage}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm transition-all flex items-center gap-2"</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"&gt;&lt;rect width="18" height="18" x="3" y="3" rx="2" ry="2"/&gt;&lt;circle cx="9" cy="9" r="2"/&gt;&lt;path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/&gt;&lt;/svg&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>匯出圖片</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;button<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>onClick={exportAsExcel}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm transition-all flex items-center gap-2"</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"&gt;&lt;path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/&gt;&lt;polyline points="14 2 14 8 20 8"/&gt;&lt;line x1="16" x2="8" y1="13" y2="13"/&gt;&lt;line x1="16" x2="8" y1="17" y2="17"/&gt;&lt;/svg&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>匯出表格</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;button<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>onClick={resetGrid}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">              </span>className="px-4 py-2 bg-white border border-slate-200 text-slate-500 hover:bg-red-50 hover:text-red-600 rounded-lg shadow-sm transition-all"</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">              </span>清除全部</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;/button&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>{/* 81格 容器 */}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div className="bg-white p-4 rounded-2xl shadow-xl overflow-x-auto"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">            </span>ref={gridRef}</p>
+<p class="p1"><span class="Apple-converted-space">            </span>className={`grid grid-cols-3 gap-2 bg-slate-300 p-2 border-2 border-slate-300 ${isExporting ? 'w-[900px] h-[900px]' : 'w-full aspect-square min-w-[600px]'}`}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>{data.map((block, bIdx) =&gt; (</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;div<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>key={bIdx}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                </span>className={`grid grid-cols-3 gap-0.5 p-1 rounded-sm</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>${bIdx === 4 ? 'bg-indigo-50 border-2 border-indigo-200' : 'bg-slate-100'}`}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                </span>{block.map((cellValue, cIdx) =&gt; {</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>const isMainGoal = bIdx === 4 &amp;&amp; cIdx === 4;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>const isSubGoalTrigger = bIdx === 4 &amp;&amp; cIdx !== 4;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>const isSyncCenter = bIdx !== 4 &amp;&amp; cIdx === 4;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>let cellClass = "bg-white text-slate-700";</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>if (isMainGoal) cellClass = "bg-indigo-600 text-white font-bold placeholder-indigo-300";</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>else if (isSubGoalTrigger) cellClass = "bg-indigo-100 text-indigo-900 font-semibold";</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>else if (isSyncCenter) cellClass = "bg-slate-200 text-slate-900 font-semibold";</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">                  </span>return (</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;div<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>key={cIdx}<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                      </span>className={`relative flex items-center justify-center border border-slate-200 group transition-all h-full ${cellClass}`}</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>&lt;textarea</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>className="w-full h-full bg-transparent resize-none focus:outline-none p-1 text-center text-[10px] sm:text-xs leading-tight flex items-center justify-center border-none"</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>value={cellValue}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>placeholder={isMainGoal ? "目標" : ""}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>onChange={(e) =&gt; handleCellChange(bIdx, cIdx, e.target.value)}</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>style={{<span class="Apple-converted-space"> </span></p>
+<p class="p1"><span class="Apple-converted-space">                          </span>textAlignLast: 'center',</p>
+<p class="p1"><span class="Apple-converted-space">                          </span>paddingTop: 'auto',</p>
+<p class="p1"><span class="Apple-converted-space">                          </span>paddingBottom: 'auto',</p>
+<p class="p1"><span class="Apple-converted-space">                          </span>verticalAlign: 'middle'</p>
+<p class="p1"><span class="Apple-converted-space">                        </span>}}</p>
+<p class="p1"><span class="Apple-converted-space">                      </span>/&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">                  </span>);</p>
+<p class="p1"><span class="Apple-converted-space">                </span>})}</p>
+<p class="p1"><span class="Apple-converted-space">              </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>))}</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">        </span>{/* 操作說明卡片 */}</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;div className="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h4 className="font-bold text-indigo-600 mb-2"&gt;1. 設定核心&lt;/h4&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p className="text-sm text-slate-500"&gt;在正中央深藍色的格子內填寫您的主要目標。&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h4 className="font-bold text-indigo-600 mb-2"&gt;2. 拆解要素&lt;/h4&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p className="text-sm text-slate-500"&gt;在中央區塊的其他 8 格填寫關鍵要素，系統會自動同步至周圍。&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;div className="p-4 bg-white rounded-xl border border-slate-100 shadow-sm"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;h4 className="font-bold text-indigo-600 mb-2"&gt;3. 具體行動&lt;/h4&gt;</p>
+<p class="p1"><span class="Apple-converted-space">            </span>&lt;p className="text-sm text-slate-500"&gt;在周圍區塊的空白格內填入具體執行計畫，完成 81 格思考。&lt;/p&gt;</p>
+<p class="p1"><span class="Apple-converted-space">          </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;/div&gt;</p>
+<p class="p2"><br></p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;footer className="text-center py-10 text-slate-400 text-xs"&gt;</p>
+<p class="p1"><span class="Apple-converted-space">        </span>目標九宮格思考工具 · 支援自動同步與多格式匯出</p>
+<p class="p1"><span class="Apple-converted-space">      </span>&lt;/footer&gt;</p>
+<p class="p1"><span class="Apple-converted-space">    </span>&lt;/div&gt;</p>
+<p class="p1"><span class="Apple-converted-space">  </span>);</p>
+<p class="p1">};</p>
+<p class="p2"><br></p>
+<p class="p1">export default App;</p>
+</body>
+</html>
