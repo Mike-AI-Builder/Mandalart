@@ -34,6 +34,9 @@
             display: flex;
             align-items: center;
             justify-content: center;
+            background: transparent;
+            border: none;
+            outline: none;
         }
         textarea::placeholder {
             color: #94a3b8;
@@ -54,7 +57,6 @@
                 Array(9).fill(null).map((_, bIdx) => 
                     Array(9).fill(null).map((_, cIdx) => ({
                         ...initialCell,
-                        // 核心目標與同步格預設深色/粗體
                         color: (bIdx === 4 && cIdx === 4) ? '#ffffff' : '#1e293b',
                         fontSize: (bIdx === 4 && cIdx === 4) ? 18 : 14
                     }))
@@ -62,20 +64,32 @@
             );
             
             const [activeCell, setActiveCell] = useState(null); // { bIdx, cIdx }
+            const [isGlobalMode, setIsGlobalMode] = useState(false); // 是否為全體編輯模式
             const [isExporting, setIsExporting] = useState(false);
             const gridRef = useRef(null);
 
             // 當內容或樣式變更時
             const updateCell = (bIdx, cIdx, updates) => {
                 const newData = data.map(block => [...block]);
-                const targetCell = { ...newData[bIdx][cIdx], ...updates };
-                newData[bIdx][cIdx] = targetCell;
 
-                // 連動邏輯
-                if (bIdx === 4 && cIdx !== 4) {
-                    newData[cIdx][4] = { ...newData[cIdx][4], ...updates };
-                } else if (bIdx !== 4 && cIdx === 4) {
-                    newData[4][bIdx] = { ...newData[4][bIdx], ...updates };
+                if (isGlobalMode && (updates.fontSize !== undefined || updates.color !== undefined)) {
+                    // 全域模式：更新所有格子的樣式（不更新文字內容）
+                    for (let i = 0; i < 9; i++) {
+                        for (let j = 0; j < 9; j++) {
+                            newData[i][j] = { ...newData[i][j], ...updates };
+                        }
+                    }
+                } else {
+                    // 單一模式：只更新特定格子
+                    const targetCell = { ...newData[bIdx][cIdx], ...updates };
+                    newData[bIdx][cIdx] = targetCell;
+
+                    // 連動邏輯 (目標同步)
+                    if (bIdx === 4 && cIdx !== 4) {
+                        newData[cIdx][4] = { ...newData[cIdx][4], ...updates };
+                    } else if (bIdx !== 4 && cIdx === 4) {
+                        newData[4][bIdx] = { ...newData[4][bIdx], ...updates };
+                    }
                 }
 
                 setData(newData);
@@ -83,7 +97,7 @@
 
             const exportAsImage = async () => {
                 if (!window.html2canvas) return;
-                setActiveCell(null); // 匯出前關閉編輯面板
+                setActiveCell(null);
                 setIsExporting(true);
                 document.activeElement?.blur();
 
@@ -131,12 +145,21 @@
 
             const resetGrid = () => {
                 if (window.confirm("確定要清除所有內容與設定嗎？")) {
-                    setData(Array(9).fill(null).map(() => Array(9).fill(null).map(() => ({...initialCell}))));
+                    setData(Array(9).fill(null).map((_, bIdx) => 
+                        Array(9).fill(null).map((_, cIdx) => ({
+                            ...initialCell,
+                            color: (bIdx === 4 && cIdx === 4) ? '#ffffff' : '#1e293b',
+                            fontSize: (bIdx === 4 && cIdx === 4) ? 18 : 14
+                        }))
+                    ));
                     setActiveCell(null);
                 }
             };
 
-            const currentCell = activeCell ? data[activeCell.bIdx][activeCell.cIdx] : null;
+            // 取得當前用於控制工具列的數值
+            const controlValues = activeCell 
+                ? data[activeCell.bIdx][activeCell.cIdx] 
+                : data[4][4];
 
             return (
                 <div className="min-h-screen py-8 px-4 flex flex-col items-center">
@@ -145,42 +168,74 @@
                         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-6 gap-4">
                             <div>
                                 <h1 className="text-3xl font-extrabold text-slate-900 mb-1">目標九宮格</h1>
-                                <p className="text-slate-500 text-sm">點擊任一格子即可調整文字大小與顏色</p>
+                                <p className="text-slate-500 text-sm">支援 81 格連動與批次樣式調整</p>
                             </div>
                             
                             <div className="flex flex-wrap items-center gap-3">
-                                {activeCell && (
-                                    <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-indigo-100 animate-in fade-in zoom-in duration-200">
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-slate-400">大小</span>
-                                            <input 
-                                                type="range" min="8" max="40" 
-                                                value={currentCell.fontSize}
-                                                onChange={(e) => updateCell(activeCell.bIdx, activeCell.cIdx, { fontSize: parseInt(e.target.value) })}
-                                                className="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                                            />
-                                            <span className="text-xs font-mono w-6">{currentCell.fontSize}</span>
-                                        </div>
-                                        <div className="w-px h-6 bg-slate-200"></div>
-                                        <div className="flex items-center gap-2">
-                                            <span className="text-xs font-bold text-slate-400">顏色</span>
-                                            <input 
-                                                type="color" 
-                                                value={currentCell.color}
-                                                onChange={(e) => updateCell(activeCell.bIdx, activeCell.cIdx, { color: e.target.value })}
-                                                className="w-8 h-8 rounded-md cursor-pointer border-none bg-transparent"
-                                            />
-                                        </div>
-                                        <button onClick={() => setActiveCell(null)} className="p-1 hover:bg-slate-100 rounded-full text-slate-400">
+                                {/* 編輯模式切換 */}
+                                <div className="flex items-center bg-slate-200 p-1 rounded-lg">
+                                    <button 
+                                        onClick={() => setIsGlobalMode(false)}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${!isGlobalMode ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                                    >
+                                        單一格子
+                                    </button>
+                                    <button 
+                                        onClick={() => setIsGlobalMode(true)}
+                                        className={`px-3 py-1 text-xs font-bold rounded-md transition-all ${isGlobalMode ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500'}`}
+                                    >
+                                        全部格子
+                                    </button>
+                                </div>
+
+                                {/* 樣式控制項 */}
+                                <div className="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-indigo-100">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-400">大小</span>
+                                        <input 
+                                            type="range" min="8" max="40" 
+                                            value={controlValues.fontSize}
+                                            onChange={(e) => {
+                                                const val = parseInt(e.target.value);
+                                                if (isGlobalMode) {
+                                                    updateCell(0, 0, { fontSize: val });
+                                                } else if (activeCell) {
+                                                    updateCell(activeCell.bIdx, activeCell.cIdx, { fontSize: val });
+                                                }
+                                            }}
+                                            className="w-24 h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                                        />
+                                        <span className="text-xs font-mono w-6">{controlValues.fontSize}</span>
+                                    </div>
+                                    <div className="w-px h-6 bg-slate-200"></div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-xs font-bold text-slate-400">顏色</span>
+                                        <input 
+                                            type="color" 
+                                            value={controlValues.color}
+                                            onChange={(e) => {
+                                                const val = e.target.value;
+                                                if (isGlobalMode) {
+                                                    updateCell(0, 0, { color: val });
+                                                } else if (activeCell) {
+                                                    updateCell(activeCell.bIdx, activeCell.cIdx, { color: val });
+                                                }
+                                            }}
+                                            className="w-8 h-8 rounded-md cursor-pointer border-none bg-transparent"
+                                        />
+                                    </div>
+                                    {activeCell && !isGlobalMode && (
+                                        <button onClick={() => setActiveCell(null)} className="ml-1 p-1 hover:bg-slate-100 rounded-full text-slate-400">
                                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
                                         </button>
-                                    </div>
-                                )}
+                                    )}
+                                </div>
+
                                 <div className="flex gap-2">
-                                    <button onClick={exportAsImage} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm text-sm font-medium flex items-center gap-2">
+                                    <button onClick={exportAsImage} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm text-sm font-medium flex items-center gap-2 transition-colors">
                                         匯出圖片
                                     </button>
-                                    <button onClick={exportAsExcel} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm text-sm font-medium flex items-center gap-2">
+                                    <button onClick={exportAsExcel} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm text-sm font-medium flex items-center gap-2 transition-colors">
                                         匯出表格
                                     </button>
                                     <button onClick={resetGrid} className="px-4 py-2 bg-white border border-slate-200 text-slate-400 hover:text-red-600 rounded-lg text-sm transition-all">
@@ -219,14 +274,13 @@
                                                         ${isActive ? 'ring-2 ring-indigo-400 z-30 border-transparent shadow-lg' : 'border-slate-200 hover:border-indigo-300'}`}
                                                 >
                                                     <textarea
-                                                        className="w-full h-fit bg-transparent resize-none focus:outline-none p-2 border-none font-medium"
+                                                        className="w-full h-full p-2 font-medium"
                                                         value={cell.text}
                                                         placeholder={isMainGoal ? "核心" : ""}
                                                         onChange={(e) => updateCell(bIdx, cIdx, { text: e.target.value })}
                                                         style={{ 
                                                             fontSize: `${cell.fontSize}px`,
                                                             color: cell.color,
-                                                            height: 'auto'
                                                         }}
                                                         onFocus={() => setActiveCell({ bIdx, cIdx })}
                                                     />
@@ -239,7 +293,7 @@
                         </div>
                         
                         <footer className="text-center py-8 text-slate-400 text-xs">
-                            目標九宮格 · 點擊格子以編輯樣式 · 支援 81 格連動
+                            目標九宮格 · 編輯模式切換：單一/全部 · 支援 81 格自動連動
                         </footer>
                     </div>
                 </div>
